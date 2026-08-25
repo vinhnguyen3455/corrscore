@@ -12,11 +12,16 @@ survey behind this package's scope, and the dependency policy (Sec. 6.4) this RE
 **Status**: 2026-08-25. v1 implemented: `matrix_energy_score`, `matrix_variogram_score`,
 `backtest_zero_overlap`, `circular_block_bootstrap`, `diebold_mariano`,
 `model_confidence_set`, and `asymmetric_weighted_mean` all live in `src/corrscore/`, fully
-type-hinted (`py.typed` marker included), installable via
-`conda run -n dev pip install -e ".[dev]"` (this repository's established `dev` conda
-environment — see the parent repo's `factor-shrinkage/README.md` for why that environment,
-not a fresh one, is the right target: it already carries the matching numpy/scipy/scikit-learn
-toolchain `arch` needed as this package's one real dependency).
+type-hinted (`py.typed` marker included, `mypy src/corrscore` clean), 52 passing tests
+(property tests throughout; `diebold_mariano` and `model_confidence_set` each cross-checked
+against a live-generated R oracle — `forecast::dm.test` byte-exact after catching a real
+n-vs-(n-lag) autocovariance-normalization bug during development, `MCS::MCSprocedure` verdict-
+matched — see `tests/_reference/`), installable via `conda run -n dev pip install -e ".[dev]"`
+(this repository's established `dev` conda environment — see the parent repo's
+`factor-shrinkage/README.md` for why that environment, not a fresh one, is the right target:
+it already carries the matching numpy/scipy/scikit-learn toolchain `arch` needed as this
+package's one real dependency). Dogfooded against real data immediately: see "Next steps"
+item 1 below.
 
 ## What this is
 
@@ -107,12 +112,22 @@ corrscore/
 
 ## Next steps (in order)
 
-1. **Refactor `scripts/regime-detection-pfa-filter.py`** against this package (design doc
-   Sec. 6.5) — replaces its locally-duplicated `energy_score_mix`/`energy_score_point`/
-   `walk_forward_energy_eval`/`circular_block_bootstrap_test`/`asymmetric_weighted_mean` with
-   imports from here. First real dogfooding, and the natural quickstart example.
+1. ~~**Refactor `scripts/regime-detection-pfa-filter.py`** against this package.~~ **Done**,
+   2026-08-25 — as a separate file, `scripts/regime-detection-pfa-filter-corrscore.py`, per
+   direct instruction (the original stays the source of record backing the manuscript's own
+   cited numbers). Validated by direct diff against a captured baseline run of the original:
+   Stages 3 and 4 (deterministic point-estimate scoring) are **bit-identical**; Stage 6's
+   numbers (-17.6%/-19.5% at K=5, -15.4%/-18.0% at K=16) match the published manuscript
+   exactly; Stage 5 (bootstrap significance) matches qualitatively as expected — same
+   conclusion (p≈0.0000, significant at every block length) but not bit-identical digits,
+   since `circular_block_bootstrap` resamples via `arch`'s own RNG/algorithm rather than the
+   original script's hand-rolled one (the intended effect of the dependency-policy swap, not
+   a discrepancy).
 2. **Rerun the two comparisons flagged in the design doc's Sec. 2.5 box** under
-   `matrix_variogram_score` once real data is wired through the refactored script — RM-DCC's
-   mixture-vs-ensemble margin and the K=16 purity-gap chase.
+   `matrix_variogram_score` — RM-DCC's mixture-vs-ensemble margin and the K=16 purity-gap
+   chase — now that real data is wired through `regime-detection-pfa-filter-corrscore.py`.
 3. Decide the final public surface (plain functions, as shipped, vs. an `sklearn`-style
-   scorer-object convention) once the refactor's friction points are known.
+   scorer-object convention) now that the refactor's friction points are known: the shared-
+   ground-truth-across-models design (`backtest_zero_overlap(forecast_fns={...}, ...)`) held
+   up well and removed a real duplication (Stage 4's original two independently-constructed
+   origin lists collapsed into one).
