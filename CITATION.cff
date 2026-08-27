@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the accompanying paper below."
+title: "corrscore: Matrix-Aware Proper Scoring Rules and Significance Testing for Correlation and Covariance Forecasts in Python"
+type: software
+authors:
+  - family-names: Nguyen
+    given-names: Vinh
+    # orcid: "https://orcid.org/XXXX-XXXX-XXXX-XXXX"  # fill in
+url: "https://github.com/vinhnguyen3455/corrscore"
+license: MIT
+version: 0.1.0
+date-released: 2026-08-27
+preferred-citation:
+  type: unpublished
+  title: "corrscore: Matrix-Aware Proper Scoring Rules and Significance Testing for Correlation and Covariance Forecasts in Python"
+  authors:
+    - family-names: Nguyen
+      given-names: Vinh
+      # orcid: "https://orcid.org/XXXX-XXXX-XXXX-XXXX"  # fill in
+  year: 2026
+  url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7358478"
+  notes: "Working paper, SSRN. Also pending submission to arXiv (q-fin.CP) -- update this record with the arXiv identifier once endorsement clears."

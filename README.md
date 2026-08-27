@@ -78,6 +78,14 @@ with purge-aware walk-forward splitting and a proper scoring rule built in — s
 [`docs/survey/`](docs/survey/) for the full landscape survey and the specific reuse-vs.-vendor
 decision behind each dependency.
 
+## Citation
+
+A companion paper describing the package's design and methodology is available as a working
+paper on SSRN: [Nguyen (2026), "corrscore: Matrix-Aware Proper Scoring Rules and Significance
+Testing for Correlation and Covariance Forecasts in
+Python"](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7358478). See
+[`CITATION.cff`](CITATION.cff) for a machine-readable citation.
+
 ## Development
 
 ```bash
