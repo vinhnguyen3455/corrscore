@@ -1,6 +1,6 @@
 """The Diebold-Mariano test (Diebold & Mariano, 1995), vendored rather
 than depending on the small, thinly-adopted `dieboldmariano` PyPI
-package (corrscore-package-design.html Sec. 6.4, Table 4).
+package.
 
 Deliberately mirrors R's `forecast::dm.test` (Hyndman et al.) formula
 by formula -- not because that package is depended on, but because it
@@ -68,7 +68,7 @@ def diebold_mariano(
     varestimator: str = "acf",
 ) -> DieboldMarianoResult:
     """Diebold-Mariano test on the paired loss differential
-    `d_t = loss_a[t] - loss_b[t]` (Eq. 7).
+    `d_t = loss_a[t] - loss_b[t]`.
 
     Parameters
     ----------

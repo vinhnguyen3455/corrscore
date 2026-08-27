@@ -1,8 +1,8 @@
 """Tests for backtest_zero_overlap. The central property to verify is
 literally the package's own reason to exist: ground_truth_fn must never
 be called with a window that could overlap what a forecast at that
-origin used -- Sec. 3.3's bug, made structurally impossible to
-reproduce through this API (backtest.py's own module docstring)."""
+origin used -- see backtest.py's own module docstring for the class of
+bug this makes structurally impossible to reproduce."""
 from __future__ import annotations
 
 import numpy as np

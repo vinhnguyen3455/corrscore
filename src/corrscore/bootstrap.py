@@ -1,11 +1,10 @@
 """Circular block-bootstrap significance testing on paired per-origin
-score differentials (corrscore-package-design.html Sec. 4.2), via
-`arch.bootstrap.CircularBlockBootstrap` -- kept as a real dependency
-(Sec. 6.4, Table 4) rather than vendored, since `arch` clears the
-"widely used, actively maintained, field-standard" bar this package's
-dependency policy sets, and block-bootstrap correctness (edge handling,
-unbiased block placement) carries real reimplementation risk for a "just
-wrap it correctly" component.
+score differentials, via `arch.bootstrap.CircularBlockBootstrap` -- kept
+as a real dependency rather than vendored, since `arch` clears this
+package's "widely used, actively maintained, field-standard" bar for
+reuse, and block-bootstrap correctness (edge handling, unbiased block
+placement) carries real reimplementation risk for a "just wrap it
+correctly" component.
 """
 from __future__ import annotations
 
@@ -55,14 +54,12 @@ def circular_block_bootstrap(
 ) -> dict[int, BootstrapResult]:
     """Percentile circular block bootstrap on the paired differential
     `d_i = scores_a[i] - scores_b[i]`, swept across `block_lengths` as a
-    sensitivity check (Sec. 4.2, Sec. 6.3 of `regime-modulated-dcc-
-    companion-explainer.html`) rather than relying on one automatically
-    "optimal" block length.
+    sensitivity check rather than relying on one automatically "optimal"
+    block length.
 
     Returns a dict keyed by each entry of `block_lengths`. The most
     conservative (largest-p) entry is the one worth reporting as the
-    headline result, matching this project's own established
-    convention.
+    headline result.
     """
     diffs = np.asarray(scores_a, dtype=float) - np.asarray(scores_b, dtype=float)
     results: dict[int, BootstrapResult] = {}

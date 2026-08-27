@@ -1,4 +1,4 @@
-# Related-software survey (transcribed from `corrscore-package-design.html` Table 3, Sec. 5.2)
+# Related-software survey
 
 Live-verified 2026-08-25 against PyPI/CRAN package pages, GitHub license/activity
 checks, and source inspection where relevant.

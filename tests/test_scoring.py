@@ -1,11 +1,9 @@
 """Tests for matrix_energy_score and matrix_variogram_score: property
-tests for the closed-form tiers (Sec. 2.4 of the design doc) plus
-Monte Carlo cross-checks confirming each closed form actually matches
-brute-force simulation of the object it claims to score exactly --
-these formulas have no external package to check against (Sec. 5.2's
-survey found none), so internal consistency plus simulation is the
-actual evidence here, the same standard this project's own manuscripts
-hold themselves to for a derived closed form.
+tests for the closed-form tiers plus Monte Carlo cross-checks confirming
+each closed form actually matches brute-force simulation of the object
+it claims to score exactly -- these formulas have no external package to
+check against, so internal consistency plus simulation is the actual
+evidence here.
 """
 from __future__ import annotations
 
@@ -46,8 +44,9 @@ def test_point_is_plain_frobenius_distance():
 @given(k=st.integers(2, 6), rho1=st.floats(-0.4, 0.4), rho2=st.floats(-0.4, 0.4), p_c=st.floats(0.01, 0.99))
 @settings(max_examples=50, deadline=None)
 def test_two_point_mixture_matches_hand_derived_closed_form(k, rho1, rho2, p_c):
-    """Eq. 2/3, transcribed independently of scoring.py's own
-    implementation -- the actual cross-check, not a self-comparison."""
+    """The closed form for a two-atom mixture, transcribed independently
+    of scoring.py's own implementation -- the actual cross-check, not a
+    self-comparison."""
     rng = np.random.default_rng(0)
     qc, qs, y = _equicorr(k, rho1), _equicorr(k, rho2), _rand_corr(k, 0.5 * (rho1 + rho2), rng)
     d = lambda a, b: np.linalg.norm(a - b, ord="fro")
@@ -60,7 +59,7 @@ def test_two_point_mixture_matches_hand_derived_closed_form(k, rho1, rho2, p_c):
 def test_mixture_generalizes_to_more_than_two_atoms():
     """Tier 1's whole point: nothing in the derivation is specific to
     K=2 atoms. Cross-check a 4-atom mixture against a hand-written
-    double sum over Eq. 4 directly."""
+    double sum over the general closed form directly."""
     rng = np.random.default_rng(1)
     k = 5
     atoms = [_rand_corr(k, rho, rng) for rho in (0.1, 0.3, 0.5, 0.7)]
@@ -104,7 +103,7 @@ def test_isotropic_gaussian_mixture_reduces_to_discrete_mixture_at_sigma_zero(k,
 
 
 def test_isotropic_gaussian_mixture_matches_brute_force_monte_carlo():
-    """The one property sigma=0 can't check: does Eq. 5's closed form
+    """The one property sigma=0 can't check: does the Tier 2 closed form
     actually match the *simulated* isotropic-Gaussian-scatter object it
     claims to describe, at a real (nonzero) sigma? Draws directly from
     the mixture (independent of scoring.py's own sampling helper) and
@@ -238,20 +237,18 @@ def test_variogram_score_is_nonnegative(k, seed):
 @given(rho=st.floats(-0.999, 0.999))
 @settings(max_examples=200, deadline=None)
 def test_phi_is_finite_and_odd(rho):
-    """phi(-rho) == -phi(rho): the construction (geometric-correlation-
-    scoring-explainer.html Eq. 8) is explicitly a SIGNED distance, and
-    everything downstream (strict monotonicity, the Fisher z-transform
-    analogy) depends on this holding exactly, not approximately."""
+    """phi(-rho) == -phi(rho): the construction is explicitly a SIGNED
+    distance, and everything downstream (strict monotonicity, the
+    Fisher z-transform analogy) depends on this holding exactly, not
+    approximately."""
     assert np.isfinite(_phi(rho))
     assert _phi(-rho) == pytest.approx(-_phi(rho))
 
 
 def test_phi_is_strictly_increasing():
-    """The mathematical property the whole construction rests on
-    (geodesic-scoring-rules-theoretical-foundations.html Sec. 5's
-    "warped ruler" argument only makes sense for a monotonic warp) --
-    checked directly, not assumed, matching this project's own
-    "verify, don't assume" discipline for exactly this claim."""
+    """The mathematical property the whole construction rests on: the
+    "warped ruler" reparametrization only makes sense for a monotonic
+    warp -- checked directly, not assumed."""
     rhos = np.linspace(-0.999, 0.999, 4001)
     assert np.all(np.diff(_phi(rhos)) > 0)
 

@@ -6,30 +6,27 @@ published for.
 
 Forecast representation (see `matrix_energy_score` and
 `matrix_variogram_score` docstrings for the exact shape of each): a
-plain dict tagged by `"kind"`, dispatching across the closed-form
-tractability spectrum documented in `corrscore-package-design.html`
-Sec. 2.4 --
+plain dict tagged by `"kind"`, dispatching across a closed-form
+tractability spectrum --
 
   - "point":                     a single deterministic matrix (M=1).
-  - "mixture":                   any number of discrete atoms (Tier 1,
-                                  Eq. 4) -- exact, O(K_atoms^2) cost, no
-                                  simulation, for any number of atoms
-                                  (not hard-coded to two regimes).
+  - "mixture":                   any number of discrete atoms -- exact,
+                                  O(K_atoms^2) cost, no simulation, for
+                                  any number of atoms (not hard-coded to
+                                  two regimes).
   - "isotropic_gaussian_mixture": discrete atoms each with an isotropic
-                                  Gaussian scatter (Tier 2, Eq. 5) --
-                                  exact for the ENERGY score via the
-                                  confluent hypergeometric mean-norm
-                                  formula; only ever reachable through
-                                  this explicit kind, never inferred
-                                  from a plain ensemble automatically,
-                                  because the isotropy assumption is a
-                                  real one (see the module's own honest
-                                  caveat in the design doc).
-  - "ensemble":                   a general Monte Carlo draw set (Tier
-                                  3) -- the only kind with no closed
-                                  form; used for anything else,
-                                  including RM-DCC's own simulated
-                                  multivariate-t paths.
+                                  Gaussian scatter -- exact for the
+                                  ENERGY score via the confluent
+                                  hypergeometric mean-norm formula; only
+                                  ever reachable through this explicit
+                                  kind, never inferred from a plain
+                                  ensemble automatically, because the
+                                  isotropy assumption is a real one.
+  - "ensemble":                   a general Monte Carlo draw set -- the
+                                  only kind with no closed form; used for
+                                  anything else, including simulated
+                                  paths from a regime-switching
+                                  correlation model.
 
 `matrix_variogram_score` has a narrower closed form than the energy
 score: exact for "point" and "mixture" (both are fully determined by a
@@ -42,31 +39,26 @@ package; sampling is the honest v1 answer for those two kinds.
 variant of `matrix_variogram_score`: every free entry is passed through
 `phi`, the signed Fisher-Rao arc length from rho=0 (a correlation entry's
 distance-to-independence, treating the entry as its own isolated 2x2
-correlation matrix under the affine-invariant metric -- see
-`geometric-correlation-scoring-explainer.html` Sec. 4.2's "warped ruler"
-and Eq. 8), before the ordinary variogram-score machinery runs on the
-transformed values. This is `matrix_variogram_score` itself, unmodified,
-called on phi-transformed entries -- not a new formula. It needs no new
-propriety argument: |a-b|^p is already conditionally negative definite
-(of negative type) on all of R for any real a, b (the same classical
-fact that already licenses the flat variogram score), and composing a
-fixed measurable transform with an already-valid kernel changes nothing
-about that (`geodesic-scoring-rules-theoretical-foundations.html`
-Theorem 3 gives the complete, and in fact more general, argument: this
-construction is proper for *any* fixed measurable per-entry transform,
-not only ones with a metric interpretation). Validated (Sec. 16.9-16.12
-of `correlation-elliptope-stress-testing-research-plan.md`) on synthetic
-matrices, on this project's own real 16-factor panel, and -- the one
-comparison that matters most -- on RM-DCC's own real, walk-forward
-forecast ensembles, where it reproduced a real, statistically significant
-discrimination advantage over the flat variogram score's own blind spot
-that `matrix_geodesic_energy_score` (a separate, whole-matrix, more
-expensive construction prototyped alongside this one but not yet added
-to the package -- see the design doc's own Sec. 16.12 addendum) did NOT
-reproduce on that same real comparison. This is, for now, the one
-geometric scoring rule promoted from prototype script to package code;
-see the design doc for the full, honest scope discussion of what is and
-is not shipped here.
+correlation matrix under the affine-invariant metric), before the
+ordinary variogram-score machinery runs on the transformed values. This
+is `matrix_variogram_score` itself, unmodified, called on
+phi-transformed entries -- not a new formula. It needs no new propriety
+argument: |a-b|^p is already conditionally negative definite (of
+negative type) on all of R for any real a, b (the same classical fact
+that already licenses the flat variogram score), and composing a fixed
+measurable transform with an already-valid kernel changes nothing about
+that -- this construction is in fact proper for *any* fixed measurable
+per-entry transform, not only ones with a metric interpretation.
+Validated on synthetic matrices, on a real 16-factor equity-factor
+panel, and -- the one comparison that matters most -- on real,
+walk-forward regime-switching correlation forecast ensembles, where it
+reproduced a statistically significant discrimination advantage over
+the flat variogram score's own blind spot near the boundary of valid
+correlation matrices. A whole-matrix geometric energy-score analogue was
+prototyped alongside this one but did not reproduce the same advantage
+on that comparison, so it is not (yet) shipped in this package; this is,
+for now, the one geometric scoring rule promoted from prototype to
+package code.
 """
 from __future__ import annotations
 
@@ -84,10 +76,8 @@ __all__ = ["matrix_energy_score", "matrix_variogram_score", "matrix_geodesic_var
 
 
 def _frobenius(a: npt.ArrayLike, b: npt.ArrayLike) -> float:
-    """Full K x K Frobenius distance -- matches the convention already
-    used throughout this project's real-data scripts
-    (`scripts/regime-detection-pfa-filter.py`'s `energy_score_mix`/
-    `energy_score_point`), not the upper-triangle-only convention
+    """Full K x K Frobenius distance -- the standard convention for a
+    matrix-valued energy score, not the upper-triangle-only convention
     `matrix_variogram_score` uses (see that function's own docstring for
     why the two conventions deliberately differ)."""
     return float(np.linalg.norm(np.asarray(a, dtype=float) - np.asarray(b, dtype=float), ord="fro"))
@@ -95,8 +85,8 @@ def _frobenius(a: npt.ArrayLike, b: npt.ArrayLike) -> float:
 
 def _upper(m: npt.ArrayLike) -> npt.NDArray[np.float64]:
     """The K(K-1)/2 free upper-triangle entries (diagonal, always 1 for
-    a correlation matrix, and the mirrored lower triangle both excluded
-    -- see corrscore-package-design.html Sec. 2.5's design decision)."""
+    a correlation matrix, and the mirrored lower triangle both excluded,
+    since they carry no independent information)."""
     arr = np.asarray(m, dtype=float)
     k = arr.shape[0]
     return arr[np.triu_indices(k, k=1)]
@@ -104,9 +94,9 @@ def _upper(m: npt.ArrayLike) -> npt.NDArray[np.float64]:
 
 def _expected_norm_isotropic_gaussian(norm_mu_sq: float, sigma: float, n: int) -> float:
     """E[||Z||] for Z ~ N(mu, sigma^2 I_n), via the noncentral-chi mean
-    formula (Johnson, Kotz & Balakrishnan, 1994; corrscore-package-
-    design.html Eq. 5), evaluated through the confluent hypergeometric
-    function `scipy.special.hyp1f1` rather than simulated.
+    formula (Johnson, Kotz & Balakrishnan, 1994), evaluated through the
+    confluent hypergeometric function `scipy.special.hyp1f1` rather than
+    simulated.
 
     `norm_mu_sq` is ||mu||^2 -- the formula only depends on mu through
     this scalar, by spherical symmetry. `n == 0` (a degenerate,
@@ -126,8 +116,9 @@ def _expected_matrix_norm_isotropic(diff_free_entries: npt.NDArray[np.float64], 
     K matrix built by placing an isotropic Gaussian free-entry vector u
     ~ N(diff_free_entries, sigma^2 I_n) (n = K(K-1)/2) into both the
     upper and lower triangle. Each free entry appears twice in A (once
-    per triangle), so ||A||_F = sqrt(2) * ||u||_2 -- this is Eq. 5 with
-    that bookkeeping factor folded in, not a separate derivation."""
+    per triangle), so ||A||_F = sqrt(2) * ||u||_2 -- this reuses
+    `_expected_norm_isotropic_gaussian` above with that bookkeeping
+    factor folded in, not a separate derivation."""
     n = diff_free_entries.size
     norm_mu_sq = float(diff_free_entries @ diff_free_entries)
     return np.sqrt(2.0) * _expected_norm_isotropic_gaussian(norm_mu_sq, sigma, n)
@@ -184,20 +175,19 @@ def _energy_score_ensemble(draws: Sequence[npt.ArrayLike], y: npt.ArrayLike) -> 
 
 
 def matrix_energy_score(forecast: Forecast, y: npt.ArrayLike) -> float:
-    """The energy score (Eq. 1), dispatched across the closed-form
-    spectrum (module docstring) by `forecast["kind"]`:
+    """The energy score (Gneiting & Raftery, 2007), dispatched across the
+    closed-form spectrum (module docstring) by `forecast["kind"]`:
 
-    - {"kind": "point", "Q": Q} -> Eq. 1's M=1 special case, plain
+    - {"kind": "point", "Q": Q} -> the M=1 special case, plain
       Frobenius distance.
     - {"kind": "mixture", "components": [(p_1, Q_1), ..., (p_K, Q_K)]}
-      -> Tier 1, Eq. 4. Any number of atoms, not just two.
+      -> Tier 1, exact. Any number of atoms, not just two.
     - {"kind": "isotropic_gaussian_mixture",
-       "components": [(p_1, Q_1, sigma_1), ...]} -> Tier 2, Eq. 5.
+       "components": [(p_1, Q_1, sigma_1), ...]} -> Tier 2, exact.
       `sigma_k` is the per-component scatter in the K(K-1)/2-dimensional
-      free-entry space (corrscore-package-design.html Sec. 5.1), not in
-      the full K x K ambient space.
+      free-entry space, not in the full K x K ambient space.
     - {"kind": "ensemble", "draws": [Q_1, ..., Q_M]} -> Tier 3, the
-      general Monte Carlo form (Eq. 1), O(M^2) pairwise distances.
+      general Monte Carlo form, O(M^2) pairwise distances.
 
     `y` is the realized K x K correlation (or covariance) matrix.
     """
@@ -266,10 +256,10 @@ def matrix_variogram_score(
     n_samples: int = 500,
     random_state: int | np.random.Generator | None = None,
 ) -> float:
-    """The variogram score (Eq. 6), adapted to index i, j over the
-    K(K-1)/2 free upper-triangle entries of the correlation matrix
-    (corrscore-package-design.html Sec. 2.5's design decision) rather
-    than the K original series the published formula was defined for.
+    """The variogram score (Scheuerer & Hamill, 2015), adapted to index
+    i, j over the K(K-1)/2 free upper-triangle entries of the
+    correlation matrix, rather than the K original series the published
+    formula was defined for.
 
     Exact (no sampling) for "point" and "mixture" forecasts. For
     "ensemble" and "isotropic_gaussian_mixture", `E|X_i - X_j|^p` is
@@ -311,15 +301,13 @@ def _phi(rho: npt.ArrayLike) -> npt.NDArray[np.float64]:
     C(rho) = [[1,rho],[rho,1]] under the affine-invariant metric, and
     returns sign(rho) * d_FR(I, C(rho)). Closed form (derived and
     verified to machine precision against the general eigenvalue-based
-    Fisher-Rao formula in `geodesic-scoring-rules-theoretical-
-    foundations.html` Corollary 4.2):
+    Fisher-Rao formula):
 
         phi(rho) = sign(rho) * sqrt(0.5 * (log(1+|rho|)^2 + log(1-|rho|)^2))
 
-    Smooth, odd, and strictly increasing on (-1, 1) -> R (Sec. 6.2 of the
-    explainer verifies this numerically); a close cousin of the
-    century-old Fisher z-transform arctanh(rho), diverging slightly
-    faster as rho -> +-1.
+    Smooth, odd, and strictly increasing on (-1, 1) -> R (verified
+    numerically); a close cousin of the century-old Fisher z-transform
+    arctanh(rho), diverging slightly faster as rho -> +-1.
     """
     rho = np.asarray(rho, dtype=float)
     a = np.abs(rho)
@@ -359,29 +347,26 @@ def matrix_geodesic_variogram_score(
 ) -> float:
     """The geometric (Fisher-Rao-aware) variogram score: `matrix_
     variogram_score` itself, unmodified, called on every free entry
-    passed through `_phi` first (module docstring; `geometric-
-    correlation-scoring-explainer.html` Sec. 8, Eq. 8). Same forecast
+    passed through `_phi` first (see module docstring). Same forecast
     dict shapes, same `p`/`weights`/`n_samples`/`random_state` semantics,
     same closed-form-vs-Monte-Carlo split by `forecast["kind"]` as
     `matrix_variogram_score` -- this function only changes what happens
     to the raw entries before that machinery runs.
 
-    Proper for the same reason `matrix_variogram_score` is (elicits a
-    pairwise-moment vector; `geodesic-scoring-rules-theoretical-
-    foundations.html` Theorem 3), for any fixed measurable per-entry
-    transform -- no new argument specific to `_phi` is needed. Not
-    strictly proper, for the identical reason the flat variogram score
-    is not, though the two scores' blind spots are provably different
-    (a common shift in phi-space vs.\\ a common shift in raw rho-space;
-    Theorem 4/Proposition 1 of the theory companion) -- running both
+    Proper for the same reason `matrix_variogram_score` is (it elicits a
+    pairwise-moment vector for any fixed measurable per-entry transform)
+    -- no new argument specific to `_phi` is needed. Not strictly proper,
+    for the identical reason the flat variogram score is not, though the
+    two scores' blind spots are provably different (a common shift in
+    phi-space vs. a common shift in raw rho-space) -- running both
     alongside each other is a real, not just pragmatic, recommendation.
 
-    Validated on real, walk-forward RM-DCC forecast ensembles (research
-    plan Sec. 16.12): a real, statistically significant discrimination
-    advantage over the flat variogram score on that comparison, unlike
-    the separate whole-matrix geodesic energy score prototype, which did
-    not reproduce an advantage there and has accordingly not (yet) been
-    promoted into this package.
+    Validated on real, walk-forward regime-switching correlation forecast
+    ensembles: a statistically significant discrimination advantage over
+    the flat variogram score on that comparison, unlike a separate
+    whole-matrix geodesic energy score prototype, which did not reproduce
+    an advantage there and has accordingly not (yet) been promoted into
+    this package.
     """
     y_t = _phi_transform_matrix(y)
     forecast_t = _phi_transform_forecast(forecast)

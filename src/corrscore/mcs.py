@@ -1,20 +1,18 @@
 """The Model Confidence Set (Hansen, Lunde & Nason, 2011), vendored
 rather than depending on `model-confidence-set` (JLDC's GitHub-only,
-no-PyPI-release Python port) -- corrscore-package-design.html Sec. 6.4,
-Table 4, the clearest case in that table's survey: reproduced directly
-from the paper, with R's actively-maintained CRAN `MCS` package
-(Catania & Bernardi) and the JLDC port used only as development-time
-correctness references, never imported at runtime.
+no-PyPI-release Python port): reproduced directly from the paper, with
+R's actively-maintained CRAN `MCS` package (Catania & Bernardi) and the
+JLDC port used only as development-time correctness references, never
+imported at runtime.
 
-Implements the range statistic (T_R) elimination algorithm (Fig. 7 of
-the design doc): repeatedly test whether the current candidate set is
-statistically distinguishable from its own best member; if so, drop the
-single worst-performing model and repeat, until the surviving set cannot
-be rejected. The null distribution and each round's studentizing
-standard errors both come from the SAME joint circular block bootstrap
-of the loss matrix (reusing `arch.bootstrap.CircularBlockBootstrap`,
-matching this package's dependency policy) -- exactly the "reuses
-Sec. 4.2's block-bootstrap machinery" claim the design doc makes.
+Implements the range statistic (T_R) elimination algorithm: repeatedly
+test whether the current candidate set is statistically distinguishable
+from its own best member; if so, drop the single worst-performing model
+and repeat, until the surviving set cannot be rejected. The null
+distribution and each round's studentizing standard errors both come
+from the SAME joint circular block bootstrap of the loss matrix
+(reusing `arch.bootstrap.CircularBlockBootstrap`, matching this
+package's dependency policy).
 
 Honest scope note: this is this package's own reasonable
 operationalization of Hansen et al.'s range statistic and elimination
@@ -100,7 +98,7 @@ def model_confidence_set(
     n_boot: int = 1000,
     seed: int | np.random.Generator | None = None,
 ) -> MCSResult:
-    """The Model Confidence Set via the range statistic (Fig. 7).
+    """The Model Confidence Set via the range statistic.
 
     Parameters
     ----------

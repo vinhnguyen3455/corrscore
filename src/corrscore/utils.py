@@ -1,8 +1,7 @@
-"""Outcome-severity-weighted aggregation, generalized from
-`asymmetric_weighted_mean` in `scripts/regime-detection-pfa-filter.py`
-(Stage 6) -- a utility surfaced by refactoring that script against this
-package (corrscore-package-design.html Sec. 6.5), not part of the
-original companion document's Sec. 6 harness scope.
+"""Outcome-severity-weighted aggregation -- a small, general-purpose
+utility for weighting per-origin scores by how severe the realized
+outcome was, surfaced while dogfooding this package against a real
+regime-detection backtest.
 """
 from __future__ import annotations
 

@@ -1,24 +1,23 @@
-"""The zero-overlap walk-forward backtest driver (corrscore-package-
-design.html Sec. 3, 6.2).
+"""The zero-overlap walk-forward backtest driver.
 
-Implementation note, refining the design doc's own API sketch: that
-sketch described a `window` parameter defaulting to `horizon`. Working
-through the actual mechanics precisely during implementation surfaced a
-cleaner, more honestly-scoped contract, documented here rather than
-silently substituted. This harness does not, and cannot, police how much
-history a caller's `forecast_fn` consults internally -- that model is
-opaque to the harness (it might be a full-history discounted filter, a
-short trailing window, or anything else), exactly the same responsibility
-boundary scikit-learn's `TimeSeriesSplit` leaves to the caller. What the
-harness genuinely *can* and does enforce, unconditionally, is the other
-half of Sec. 3.3's bug: `ground_truth_fn` is always called with a start
-point strictly after the origin (`origin + 1 + purge_gap`), never a
-window that reaches back before or across it. That is the actual,
-literal mechanism behind the original 20/21-day-overlap bug (Fig. 4) --
-ground truth was computed as a window *ending* near the origin rather
-than a window *starting* strictly after it -- and this API makes that
-specific mistake structurally impossible to reproduce, since the caller
-never controls the start point passed to `ground_truth_fn`.
+Design note: an earlier sketch of this API had a `window` parameter
+defaulting to `horizon`. Working through the actual mechanics precisely
+during implementation surfaced a cleaner, more honestly-scoped contract,
+documented here rather than silently substituted. This harness does not,
+and cannot, police how much history a caller's `forecast_fn` consults
+internally -- that model is opaque to the harness (it might be a
+full-history discounted filter, a short trailing window, or anything
+else), exactly the same responsibility boundary scikit-learn's
+`TimeSeriesSplit` leaves to the caller. What the harness genuinely *can*
+and does enforce, unconditionally, is that `ground_truth_fn` is always
+called with a start point strictly after the origin
+(`origin + 1 + purge_gap`), never a window that reaches back before or
+across it. That guards against a real class of bug this package exists
+to prevent: computing "ground truth" as a window *ending* near the
+origin rather than a window *starting* strictly after it, which silently
+leaks estimation-window information into the evaluation. This API makes
+that specific mistake structurally impossible to reproduce, since the
+caller never controls the start point passed to `ground_truth_fn`.
 """
 from __future__ import annotations
 
@@ -77,11 +76,10 @@ def backtest_zero_overlap(
     For each `origin` in `origins`: computes
     `y = ground_truth_fn(origin + 1 + purge_gap, origin + 1 + purge_gap
     + horizon)`, then scores each `forecast_fns[name](origin)` against
-    `y` via `score_fn`. `purge_gap=0` (the default) reproduces Fig. 4's
-    fixed configuration exactly (WIN=H, zero shared days by
-    construction); a larger `purge_gap` is a deliberate relaxation the
-    caller must opt into explicitly, matching Sec. 3.3's "never a silent
-    default" principle.
+    `y` via `score_fn`. `purge_gap=0` (the default) gives zero shared
+    days between the forecast origin and the ground-truth window by
+    construction; a larger `purge_gap` is a deliberate relaxation the
+    caller must opt into explicitly -- never a silent default.
 
     Parameters
     ----------
@@ -100,9 +98,9 @@ def backtest_zero_overlap(
         `start = origin + 1 + purge_gap`, `end = start + horizon` --
         never anything else. It is the caller's responsibility that
         this function computes a genuinely forward-looking realized
-        estimate from `[start, end)`, not a trailing one (the original
-        Sec. 3.3 bug was in how ground truth was defined, not just how
-        it was timed).
+        estimate from `[start, end)`, not a trailing one -- the timing
+        guard above prevents overlap, but not a `ground_truth_fn` that
+        is itself defined as a trailing window.
     origins : sequence of int
     horizon : int
     purge_gap : int, default=0
