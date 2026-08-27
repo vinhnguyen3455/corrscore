@@ -81,7 +81,7 @@ decision behind each dependency.
 ## Development
 
 ```bash
-git clone <this repo>
+git clone https://github.com/vinhnguyen3455/corrscore
 cd corrscore
 pip install -e ".[dev]"
 pytest -q
