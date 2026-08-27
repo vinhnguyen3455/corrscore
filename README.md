@@ -1,10 +1,10 @@
 # corrscore
 
-Matrix-aware proper-scoring-rule backtesting for correlation and covariance forecasts.
+Matrix-aware proper-scoring-rule backtesting for correlation and covariance forecasts, in Python.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## What this is
+## Why this exists
 
 Forecasting a correlation or covariance matrix is common in risk management and portfolio
 construction — but evaluating that forecast correctly is not routine. Two mistakes are easy to
@@ -16,15 +16,28 @@ make and hard to notice:
 2. **Walk-forward evaluation windows are easy to overlap with the estimation window**, silently
    leaking future information into a backtest and inflating apparent skill.
 
-`corrscore` provides matrix-aware scoring rules (the energy score and the variogram score, both
-adapted from their usual vector-valued form to score a full `K x K` matrix), a backtesting harness
-that enforces a strict no-overlap timing discipline by construction, and the significance-testing
-machinery (circular block bootstrap, Diebold-Mariano test, Model Confidence Set) needed to say
-whether one forecast actually beats another, not just looks better on one sample.
+`corrscore` evaluates a forecast; it never produces one. It doesn't fit a model, doesn't implement
+any particular correlation-dynamics model, and doesn't fetch or clean data — it's a focused
+evaluation layer you drop on top of whatever you're already forecasting with.
 
-Deliberately narrow in scope: this package does not fit a forecasting model, does not implement
-any particular correlation-dynamics model, and does not fetch or clean data. It evaluates a
-forecast; it never produces one.
+## What it offers
+
+- **Matrix-aware energy and variogram scores.** The two standard proper scoring rules from the
+  forecast-verification literature, generalized from their usual vector-valued form to score a
+  full `K x K` correlation/covariance matrix directly.
+- **A geometric variant of the variogram score**, aware of the fact that correlation matrices live
+  on a curved space rather than flat Euclidean space — sharper at detecting forecast danger as a
+  matrix approaches the boundary of validity (near-singular, highly correlated regimes).
+- **Four forecast representations**, not just point forecasts: a single deterministic matrix, a
+  discrete mixture of any number of atoms, an isotropic-Gaussian mixture, or a general Monte Carlo
+  ensemble — with closed-form scoring wherever one exists, Monte Carlo estimation only where it
+  doesn't.
+- **A backtesting harness (`backtest_zero_overlap`)** that makes the specific, easy-to-make
+  lookahead bug — ground truth computed from a window that overlaps the forecast origin —
+  structurally impossible to reproduce, rather than something you have to remember to get right.
+- **Significance testing**, not just point comparisons: a circular block bootstrap for
+  serially-dependent score differentials, the Diebold-Mariano test, and the Model Confidence Set
+  — so "is model A really better than model B" has an actual answer.
 
 ```python
 from corrscore import matrix_energy_score, backtest_zero_overlap
@@ -43,82 +56,39 @@ mcs = model_confidence_set(result.scores, alpha=0.10)
 ## Install
 
 ```bash
+pip install corrscore
+```
+
+Requires Python 3.10-3.12. Runtime dependencies are `numpy`, `scipy`, and `arch` (for the circular
+block bootstrap) — nothing else.
+
+## Validation
+
+Every scoring rule and test in this package is checked against an independent source of truth, not
+just its own self-consistency: `diebold_mariano` and `model_confidence_set` are cross-checked
+against live-generated R oracles (`forecast::dm.test` byte-exact, `MCS::MCSprocedure`
+verdict-matched), and every closed-form scoring formula is checked against brute-force Monte Carlo
+simulation of the object it claims to score. Fully type-hinted and `mypy`-clean. See `tests/` for
+the full suite.
+
+## Related work
+
+No existing package (Python or R) treats a correlation/covariance matrix as the forecast object
+with purge-aware walk-forward splitting and a proper scoring rule built in — see
+[`docs/survey/`](docs/survey/) for the full landscape survey and the specific reuse-vs.-vendor
+decision behind each dependency.
+
+## Development
+
+```bash
+git clone <this repo>
+cd corrscore
 pip install -e ".[dev]"
+pytest -q
+mypy src/corrscore
 ```
 
-Requires Python 3.10-3.12. Runtime dependencies are `numpy`, `scipy`, and `arch` (for the
-circular block bootstrap); `pytest`/`hypothesis`/`mypy` are dev-only.
-
-## Status
-
-v1: `matrix_energy_score`, `matrix_variogram_score`, `matrix_geodesic_variogram_score`,
-`backtest_zero_overlap`, `circular_block_bootstrap`, `diebold_mariano`, `model_confidence_set`,
-and `asymmetric_weighted_mean` all live in `src/corrscore/`, fully type-hinted (`py.typed` marker
-included, `mypy src/corrscore` clean). Property tests throughout; `diebold_mariano` and
-`model_confidence_set` are each cross-checked against a live-generated R oracle
-(`forecast::dm.test` byte-exact, `MCS::MCSprocedure` verdict-matched — see `tests/_reference/`).
-
-## Why this scope
-
-`backtest_zero_overlap()` cannot and does not police how much history a caller's `forecast_fn`
-consults internally (a full-history discounted filter and a short trailing window are both opaque
-to it — the same responsibility boundary scikit-learn's `TimeSeriesSplit` leaves to its caller).
-What it genuinely can and does enforce unconditionally is that `ground_truth_fn` is only ever
-called with a start point strictly after the origin (`origin + 1 + purge_gap`, `purge_gap=0` by
-default). See `src/corrscore/backtest.py`'s module docstring for the full reasoning.
-
-## Dependency policy
-
-Reuse only what's genuinely industry-standard; reproduce everything else in-house with
-attribution and, where one exists, an oracle cross-check against a reference implementation.
-
-| Package | Role | Decision |
-|---|---|---|
-| `numpy`, `scipy` | array math, `hyp1f1`/`gammaln` for a closed-form scoring-rule case, `pdist` | dependency |
-| `arch` (Sheppard) | `CircularBlockBootstrap`, reused directly in `bootstrap.py` and (for its joint/multivariate resampling) `mcs.py` | dependency |
-| — | `matrix_energy_score`/`matrix_variogram_score` | vendored (`scoring.py`) — no existing package treats a correlation matrix as the forecast object (see `docs/survey/`) |
-| — | `diebold_mariano` | vendored (`diebold_mariano.py`), formula-matched against R's `forecast::dm.test` as a development-time oracle (see `tests/_reference/`) |
-| — | `model_confidence_set` | vendored (`mcs.py`), verdict-checked (not byte-exact) against R's `MCS::MCSprocedure`, reproduced from Hansen, Lunde & Nason (2011) directly |
-
-Full rationale and the live software-landscape survey behind these decisions: `docs/survey/`.
-
-## Layout
-
-```
-corrscore/
-  README.md
-  LICENSE
-  pyproject.toml            hatchling backend, mypy config; pip install -e ".[dev]" works
-  .github/workflows/
-    test.yml                 pytest + mypy matrix (Python 3.10-3.12)
-  src/
-    corrscore/
-      __init__.py
-      py.typed                PEP 561 marker
-      scoring.py              matrix_energy_score, matrix_variogram_score, matrix_geodesic_variogram_score
-      backtest.py             backtest_zero_overlap, BacktestResult
-      bootstrap.py            circular_block_bootstrap, BootstrapResult (via arch)
-      diebold_mariano.py      diebold_mariano, DieboldMarianoResult
-      mcs.py                  model_confidence_set, MCSResult
-      utils.py                asymmetric_weighted_mean
-  tests/
-    test_scoring.py           property tests + closed-form-vs-Monte-Carlo cross-checks
-    test_backtest.py          zero-overlap-by-construction checks
-    test_bootstrap.py
-    test_diebold_mariano.py   property tests + R forecast::dm.test oracle cross-check
-    test_mcs.py                property tests + R MCS::MCSprocedure verdict cross-check
-    test_utils.py
-    _reference/
-      dm_test_oracle_values.py   fixed (data, R-computed statistic/p-value) tuples, generated once via Rscript
-      mcs_oracle_check.py         helper that shells out to Rscript + MCS::MCSprocedure for the verdict cross-check
-  docs/
-    survey/                   the related-software landscape survey behind this package's scope
-```
-
-## Contributing
-
-Issues and pull requests welcome. Run the test suite with `pytest -q` and type-check with
-`mypy src/corrscore` before opening a PR.
+Issues and pull requests welcome.
 
 ## License
 
