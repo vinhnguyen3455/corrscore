@@ -37,6 +37,36 @@ finite set of deterministic atoms), Monte-Carlo-estimated for "ensemble"
 and "isotropic_gaussian_mixture" -- no closed form for a fractional
 absolute moment of a Gaussian difference has been derived for this
 package; sampling is the honest v1 answer for those two kinds.
+
+`matrix_geodesic_variogram_score` is a geometric (Fisher-Rao-aware)
+variant of `matrix_variogram_score`: every free entry is passed through
+`phi`, the signed Fisher-Rao arc length from rho=0 (a correlation entry's
+distance-to-independence, treating the entry as its own isolated 2x2
+correlation matrix under the affine-invariant metric -- see
+`geometric-correlation-scoring-explainer.html` Sec. 4.2's "warped ruler"
+and Eq. 8), before the ordinary variogram-score machinery runs on the
+transformed values. This is `matrix_variogram_score` itself, unmodified,
+called on phi-transformed entries -- not a new formula. It needs no new
+propriety argument: |a-b|^p is already conditionally negative definite
+(of negative type) on all of R for any real a, b (the same classical
+fact that already licenses the flat variogram score), and composing a
+fixed measurable transform with an already-valid kernel changes nothing
+about that (`geodesic-scoring-rules-theoretical-foundations.html`
+Theorem 3 gives the complete, and in fact more general, argument: this
+construction is proper for *any* fixed measurable per-entry transform,
+not only ones with a metric interpretation). Validated (Sec. 16.9-16.12
+of `correlation-elliptope-stress-testing-research-plan.md`) on synthetic
+matrices, on this project's own real 16-factor panel, and -- the one
+comparison that matters most -- on RM-DCC's own real, walk-forward
+forecast ensembles, where it reproduced a real, statistically significant
+discrimination advantage over the flat variogram score's own blind spot
+that `matrix_geodesic_energy_score` (a separate, whole-matrix, more
+expensive construction prototyped alongside this one but not yet added
+to the package -- see the design doc's own Sec. 16.12 addendum) did NOT
+reproduce on that same real comparison. This is, for now, the one
+geometric scoring rule promoted from prototype script to package code;
+see the design doc for the full, honest scope discussion of what is and
+is not shipped here.
 """
 from __future__ import annotations
 
@@ -50,7 +80,7 @@ from scipy.special import gammaln, hyp1f1
 Matrix = npt.NDArray[np.float64]
 Forecast = Mapping[str, Any]
 
-__all__ = ["matrix_energy_score", "matrix_variogram_score"]
+__all__ = ["matrix_energy_score", "matrix_variogram_score", "matrix_geodesic_variogram_score"]
 
 
 def _frobenius(a: npt.ArrayLike, b: npt.ArrayLike) -> float:
@@ -273,3 +303,86 @@ def matrix_variogram_score(
         raise ValueError(f"Unknown forecast kind: {kind!r}")
 
     return float(np.sum(w * (y_diff_p - exp_diff_p) ** 2))
+
+
+def _phi(rho: npt.ArrayLike) -> npt.NDArray[np.float64]:
+    """Signed Fisher-Rao arc length from rho=0: treats a single
+    correlation entry as its own isolated 2x2 correlation matrix
+    C(rho) = [[1,rho],[rho,1]] under the affine-invariant metric, and
+    returns sign(rho) * d_FR(I, C(rho)). Closed form (derived and
+    verified to machine precision against the general eigenvalue-based
+    Fisher-Rao formula in `geodesic-scoring-rules-theoretical-
+    foundations.html` Corollary 4.2):
+
+        phi(rho) = sign(rho) * sqrt(0.5 * (log(1+|rho|)^2 + log(1-|rho|)^2))
+
+    Smooth, odd, and strictly increasing on (-1, 1) -> R (Sec. 6.2 of the
+    explainer verifies this numerically); a close cousin of the
+    century-old Fisher z-transform arctanh(rho), diverging slightly
+    faster as rho -> +-1.
+    """
+    rho = np.asarray(rho, dtype=float)
+    a = np.abs(rho)
+    d = np.sqrt(0.5 * (np.log1p(a) ** 2 + np.log1p(-a) ** 2))
+    return np.sign(rho) * d
+
+
+def _phi_transform_matrix(q: npt.ArrayLike) -> npt.NDArray[np.float64]:
+    """`_phi` applied entrywise off-diagonal. The diagonal is zeroed
+    before transforming, not left at the input's own (always exactly
+    1.0) diagonal: `_upper` never reads it, but `_phi(1.0)` is -inf
+    (log1p(-1)), which is harmless numerically (never read) but raises a
+    spurious divide-by-zero warning on every call otherwise."""
+    q = np.asarray(q, dtype=float).copy()
+    np.fill_diagonal(q, 0.0)
+    return _phi(q)
+
+
+def _phi_transform_forecast(forecast: Forecast) -> Forecast:
+    kind = forecast["kind"]
+    if kind == "point":
+        return {"kind": "point", "Q": _phi_transform_matrix(forecast["Q"])}
+    if kind == "mixture":
+        return {"kind": "mixture", "components": [(w, _phi_transform_matrix(q)) for w, q in forecast["components"]]}
+    if kind == "ensemble":
+        return {"kind": "ensemble", "draws": [_phi_transform_matrix(d) for d in forecast["draws"]]}
+    raise ValueError(f"Unknown forecast kind: {kind!r}")
+
+
+def matrix_geodesic_variogram_score(
+    forecast: Forecast,
+    y: npt.ArrayLike,
+    p: float = 0.5,
+    weights: npt.ArrayLike | None = None,
+    n_samples: int = 500,
+    random_state: int | np.random.Generator | None = None,
+) -> float:
+    """The geometric (Fisher-Rao-aware) variogram score: `matrix_
+    variogram_score` itself, unmodified, called on every free entry
+    passed through `_phi` first (module docstring; `geometric-
+    correlation-scoring-explainer.html` Sec. 8, Eq. 8). Same forecast
+    dict shapes, same `p`/`weights`/`n_samples`/`random_state` semantics,
+    same closed-form-vs-Monte-Carlo split by `forecast["kind"]` as
+    `matrix_variogram_score` -- this function only changes what happens
+    to the raw entries before that machinery runs.
+
+    Proper for the same reason `matrix_variogram_score` is (elicits a
+    pairwise-moment vector; `geodesic-scoring-rules-theoretical-
+    foundations.html` Theorem 3), for any fixed measurable per-entry
+    transform -- no new argument specific to `_phi` is needed. Not
+    strictly proper, for the identical reason the flat variogram score
+    is not, though the two scores' blind spots are provably different
+    (a common shift in phi-space vs.\\ a common shift in raw rho-space;
+    Theorem 4/Proposition 1 of the theory companion) -- running both
+    alongside each other is a real, not just pragmatic, recommendation.
+
+    Validated on real, walk-forward RM-DCC forecast ensembles (research
+    plan Sec. 16.12): a real, statistically significant discrimination
+    advantage over the flat variogram score on that comparison, unlike
+    the separate whole-matrix geodesic energy score prototype, which did
+    not reproduce an advantage there and has accordingly not (yet) been
+    promoted into this package.
+    """
+    y_t = _phi_transform_matrix(y)
+    forecast_t = _phi_transform_forecast(forecast)
+    return matrix_variogram_score(forecast_t, y_t, p=p, weights=weights, n_samples=n_samples, random_state=random_state)

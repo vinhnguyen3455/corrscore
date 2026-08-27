@@ -13,7 +13,8 @@ import numpy as np
 import pytest
 from hypothesis import given, settings, strategies as st
 
-from corrscore import matrix_energy_score, matrix_variogram_score
+from corrscore import matrix_energy_score, matrix_geodesic_variogram_score, matrix_variogram_score
+from corrscore.scoring import _phi
 
 
 def _rand_corr(k, rho, rng):
@@ -227,3 +228,126 @@ def test_variogram_score_is_nonnegative(k, seed):
     rng = np.random.default_rng(seed)
     q, y = _rand_corr(k, 0.3, rng), _rand_corr(k, 0.5, rng)
     assert matrix_variogram_score({"kind": "point", "Q": q}, y) >= 0.0
+
+
+# ---------------------------------------------------------------------
+# matrix_geodesic_variogram_score
+# ---------------------------------------------------------------------
+
+
+@given(rho=st.floats(-0.999, 0.999))
+@settings(max_examples=200, deadline=None)
+def test_phi_is_finite_and_odd(rho):
+    """phi(-rho) == -phi(rho): the construction (geometric-correlation-
+    scoring-explainer.html Eq. 8) is explicitly a SIGNED distance, and
+    everything downstream (strict monotonicity, the Fisher z-transform
+    analogy) depends on this holding exactly, not approximately."""
+    assert np.isfinite(_phi(rho))
+    assert _phi(-rho) == pytest.approx(-_phi(rho))
+
+
+def test_phi_is_strictly_increasing():
+    """The mathematical property the whole construction rests on
+    (geodesic-scoring-rules-theoretical-foundations.html Sec. 5's
+    "warped ruler" argument only makes sense for a monotonic warp) --
+    checked directly, not assumed, matching this project's own
+    "verify, don't assume" discipline for exactly this claim."""
+    rhos = np.linspace(-0.999, 0.999, 4001)
+    assert np.all(np.diff(_phi(rhos)) > 0)
+
+
+def test_phi_matches_leading_order_taylor_expansion_near_zero():
+    """phi(rho) = rho + O(rho^3) near rho=0 (log(1+-rho) ~ +-rho -
+    rho^2/2 to leading order, so the two log-squared terms combine to
+    give phi(rho) ~ rho): the geodesic score should reduce to the flat
+    score for near-independent correlations, not just "look similar"."""
+    for rho in (1e-4, 1e-3, 1e-2):
+        assert _phi(rho) == pytest.approx(rho, rel=1e-3)
+
+
+def test_geodesic_variogram_score_matches_flat_score_via_explicit_phi_transform():
+    """Independent cross-check (not a self-comparison of the
+    implementation against itself): apply the closed-form phi to Q and y
+    by hand, then call the *flat* matrix_variogram_score directly on the
+    transformed matrices; this must equal matrix_geodesic_variogram_score
+    applied to the untransformed inputs."""
+    rng = np.random.default_rng(6)
+    k = 5
+    q, y = _rand_corr(k, 0.4, rng), _rand_corr(k, 0.6, rng)
+
+    def phi_matrix(m):
+        m = m.copy()
+        np.fill_diagonal(m, 0.0)
+        return np.sign(m) * np.sqrt(0.5 * (np.log1p(np.abs(m)) ** 2 + np.log1p(-np.abs(m)) ** 2))
+
+    expected = matrix_variogram_score({"kind": "point", "Q": phi_matrix(q)}, phi_matrix(y))
+    got = matrix_geodesic_variogram_score({"kind": "point", "Q": q}, y)
+    assert got == pytest.approx(expected, abs=1e-9)
+
+
+def test_geodesic_variogram_score_is_zero_for_perfect_point_forecast():
+    y = _equicorr(5, 0.4)
+    assert matrix_geodesic_variogram_score({"kind": "point", "Q": y}, y) == pytest.approx(0.0, abs=1e-10)
+
+
+def test_geodesic_variogram_score_mixture_matches_hand_derived_weighted_average():
+    """Same structure as the flat mixture cross-check, but with phi
+    applied to every entry first -- an independent transcription, not a
+    call into the package's own _phi helper."""
+    rng = np.random.default_rng(7)
+    k = 4
+    qc, qs = _rand_corr(k, 0.1, rng), _rand_corr(k, 0.7, rng)
+    y = _rand_corr(k, 0.4, rng)
+    p = 0.5
+
+    def phi(r):
+        a = np.abs(r)
+        return np.sign(r) * np.sqrt(0.5 * (np.log1p(a) ** 2 + np.log1p(-a) ** 2))
+
+    iu = np.triu_indices(k, k=1)
+    y_u, qc_u, qs_u = phi(y[iu]), phi(qc[iu]), phi(qs[iu])
+    y_diff = np.abs(y_u[:, None] - y_u[None, :]) ** p
+    exp_diff = 0.4 * np.abs(qc_u[:, None] - qc_u[None, :]) ** p + 0.6 * np.abs(qs_u[:, None] - qs_u[None, :]) ** p
+    expected = float(np.sum((y_diff - exp_diff) ** 2))
+    got = matrix_geodesic_variogram_score({"kind": "mixture", "components": [(0.4, qc), (0.6, qs)]}, y, p=p)
+    assert got == pytest.approx(expected, abs=1e-8)
+
+
+def test_geodesic_variogram_score_ensemble_uses_draws_directly_not_extra_sampling():
+    rng = np.random.default_rng(8)
+    k = 4
+    draws = [_rand_corr(k, rho, rng) for rho in np.linspace(0.1, 0.6, 20)]
+    y = _rand_corr(k, 0.4, rng)
+    a = matrix_geodesic_variogram_score({"kind": "ensemble", "draws": draws}, y)
+    b = matrix_geodesic_variogram_score({"kind": "ensemble", "draws": draws}, y)
+    assert a == pytest.approx(b)
+
+
+@given(k=st.integers(3, 6), seed=st.integers(0, 10_000))
+@settings(max_examples=30, deadline=None)
+def test_geodesic_variogram_score_is_nonnegative(k, seed):
+    rng = np.random.default_rng(seed)
+    q, y = _rand_corr(k, 0.3, rng), _rand_corr(k, 0.5, rng)
+    assert matrix_geodesic_variogram_score({"kind": "point", "Q": q}, y) >= 0.0
+
+
+@given(k=st.integers(3, 6), seed=st.integers(0, 10_000))
+@settings(max_examples=30, deadline=None)
+def test_geodesic_variogram_score_approx_equals_flat_score_for_small_correlations(k, seed):
+    """phi(rho) ~ rho near 0 (verified directly above), so for inputs
+    confined to a small neighborhood of independence the geodesic and
+    flat variogram scores should agree closely -- the construction's
+    own consistency check, not just an isolated property of phi."""
+    rng = np.random.default_rng(seed)
+    q = _rand_corr(k, 0.0, rng) * 0.05
+    y = _rand_corr(k, 0.0, rng) * 0.05
+    np.fill_diagonal(q, 1.0)
+    np.fill_diagonal(y, 1.0)
+    flat = matrix_variogram_score({"kind": "point", "Q": q}, y)
+    geo = matrix_geodesic_variogram_score({"kind": "point", "Q": q}, y)
+    assert geo == pytest.approx(flat, rel=0.05, abs=1e-6)
+
+
+def test_geodesic_variogram_score_unknown_kind_raises():
+    with pytest.raises(ValueError):
+        matrix_geodesic_variogram_score({"kind": "nonsense"}, np.eye(3))

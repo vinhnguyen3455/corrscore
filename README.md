@@ -1,6 +1,7 @@
 # corrscore
 
-**Design doc**: [`../corrscore-package-design.html`](../corrscore-package-design.html) — the
+**Design doc**: `corrscore-package-design.html`, in the `quant-finance` research repo this package
+was extracted from — the
 pedagogical companion and package-design document this package implements: proper scoring
 rules from scratch (the energy score, the closed-form spectrum across point/discrete-mixture/
 isotropic-Gaussian-mixture/general-ensemble forecasts, the variogram score), the zero-overlap
@@ -16,12 +17,10 @@ type-hinted (`py.typed` marker included, `mypy src/corrscore` clean), 52 passing
 (property tests throughout; `diebold_mariano` and `model_confidence_set` each cross-checked
 against a live-generated R oracle — `forecast::dm.test` byte-exact after catching a real
 n-vs-(n-lag) autocovariance-normalization bug during development, `MCS::MCSprocedure` verdict-
-matched — see `tests/_reference/`), installable via `conda run -n dev pip install -e ".[dev]"`
-(this repository's established `dev` conda environment — see the parent repo's
-`factor-shrinkage/README.md` for why that environment, not a fresh one, is the right target:
-it already carries the matching numpy/scipy/scikit-learn toolchain `arch` needed as this
-package's one real dependency). Dogfooded against real data immediately: see "Next steps"
-item 1 below.
+matched — see `tests/_reference/`), installable via `pip install -e ".[dev]"` in any Python 3.10-3.12 environment with a
+numpy/scipy/scikit-learn toolchain (developed against a conda `dev` environment in the
+`quant-finance` monorepo this package was extracted from; `arch` is this package's one real
+runtime dependency). Dogfooded against real data immediately: see "Next steps" item 1 below.
 
 ## What this is
 
