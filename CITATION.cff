@@ -8,8 +8,8 @@ authors:
     # orcid: "https://orcid.org/XXXX-XXXX-XXXX-XXXX"  # fill in
 url: "https://github.com/vinhnguyen3455/corrscore"
 license: MIT
-version: 0.1.0
-date-released: 2026-08-27
+version: 0.1.1
+date-released: 2026-09-17
 preferred-citation:
   type: unpublished
   title: "corrscore: Matrix-Aware Proper Scoring Rules and Significance Testing for Correlation and Covariance Forecasts in Python"

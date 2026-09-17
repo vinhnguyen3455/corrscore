@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "corrscore"
-version = "0.1.0"
+version = "0.1.1"
 description = "Matrix-aware proper-scoring-rule backtesting for correlation and covariance forecasts: zero-overlap walk-forward evaluation, energy/variogram scoring, and significance testing (block bootstrap, Diebold-Mariano, Model Confidence Set)."
 readme = "README.md"
 license = { text = "MIT" }
