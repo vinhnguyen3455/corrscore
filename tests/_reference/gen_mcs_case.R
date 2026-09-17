@@ -17,7 +17,9 @@ for (nm in colnames(Loss)) {
 }
 cat(")\n\n")
 
-res <- MCSprocedure(Loss, alpha=0.10, B=5000, statistic="Tmax", seed=7, verbose=FALSE)
+alpha <- 0.10
+res <- MCSprocedure(Loss, alpha=alpha, B=5000, statistic="Tmax", seed=7, verbose=FALSE)
+survivors <- rownames(res@show)[res@show[, "MCS p-Value"] >= alpha]
 cat("# R MCSprocedure(alpha=0.10, statistic='Tmax') survivors:\n")
-print(res@Info$model.names)
+print(survivors)
 show(res)

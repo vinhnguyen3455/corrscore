@@ -1,5 +1,5 @@
 # Auto-generated ONCE via Rscript against forecast::dm.test -- see
-# gen_dm_oracle2.R (kept alongside this file) for the exact generating
+# gen_dm_oracle.R (kept alongside this file) for the exact generating
 # script. This package does not depend on R or rpy2 at runtime or test
 # time -- `loss_a`/`loss_b` below are R's own actual rnorm() draws,
 # baked in as fixed data, not regenerated from a shared seed (R's and
