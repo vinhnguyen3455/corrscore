@@ -271,6 +271,14 @@ def matrix_variogram_score(
     modest through K=16 (n_entries=120); pass a smaller value for larger
     K if memory becomes a concern.
 
+    The Monte Carlo path is biased upward: the plug-in estimate of
+    `E|X_i - X_j|^p` sits inside a squared term, which adds its variance.
+    Expected excess = sum_ij w_ij * Var(|X_i - X_j|^p) / M, where M is
+    `n_samples` (or the ensemble size for "ensemble"). For an outcome
+    drawn from the forecast this is a relative inflation of 1/M (0.2% at
+    the default). Exact-scored forecasts ("point", "mixture") carry no
+    such bias, so keep this in mind when comparing across kinds.
+
     `weights` (if given) must be an (n_entries, n_entries) array;
     defaults to uniform (all-ones), matching Scheuerer & Hamill's own
     default and the published formula literally.
@@ -307,7 +315,8 @@ def _phi(rho: npt.ArrayLike) -> npt.NDArray[np.float64]:
 
     Smooth, odd, and strictly increasing on (-1, 1) -> R (verified
     numerically); a close cousin of the century-old Fisher z-transform
-    arctanh(rho), diverging slightly faster as rho -> +-1.
+    arctanh(rho); both diverge logarithmically as rho -> +-1, with
+    phi(rho) / arctanh(rho) -> sqrt(2).
     """
     rho = np.asarray(rho, dtype=float)
     a = np.abs(rho)

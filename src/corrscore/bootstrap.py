@@ -57,9 +57,16 @@ def circular_block_bootstrap(
     sensitivity check rather than relying on one automatically "optimal"
     block length.
 
-    Returns a dict keyed by each entry of `block_lengths`. The most
-    conservative (largest-p) entry is the one worth reporting as the
-    headline result.
+    Returns a dict keyed by each entry of `block_lengths`. Report the
+    range of p-values and intervals across the sweep. If a single
+    headline entry is wanted, the largest-p one is conservative but is
+    a choice made after seeing the sweep; a block length from a
+    data-driven rule such as `arch.bootstrap.optimal_block_length`,
+    fixed in advance, is the cleaner alternative.
+
+    `p_value` is a bootstrap estimate: with `n_boot` resamples the
+    smallest nonzero two-sided value is 2 / `n_boot`, and 0.0 means no
+    resample crossed zero (report it as p < 2 / `n_boot`).
     """
     diffs = np.asarray(scores_a, dtype=float) - np.asarray(scores_b, dtype=float)
     results: dict[int, BootstrapResult] = {}

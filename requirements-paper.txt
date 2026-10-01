@@ -1,0 +1,21 @@
+# Pinned environment that reproduces the printed output of Section 5 of the
+# corrscore paper (examples/section5_example.py), verified on
+# Python 3.12.7, macOS arm64.
+#
+# The example simulates its data with numpy's Generator.multivariate_normal;
+# the printed numbers are NOT reproduced under numpy 2.x (mean VS 3.0639 vs
+# the paper's 3.0274), so numpy/scipy/arch must stay at these versions.
+numpy==1.26.4
+scipy==1.13.1
+arch==7.0.0
+pandas==2.2.3
+statsmodels==0.14.6
+patsy==1.0.3
+packaging==26.3
+python-dateutil==2.9.0.post0
+pytz==2026.4
+six==1.17.0
+tzdata==2026.4
+# test dependencies (not needed for the example itself)
+pytest==9.1.1
+hypothesis==6.168.3

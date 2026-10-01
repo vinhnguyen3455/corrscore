@@ -62,13 +62,29 @@ pip install corrscore
 Requires Python 3.10-3.12. Runtime dependencies are `numpy`, `scipy`, and `arch` (for the circular
 block bootstrap) — nothing else.
 
+## Reproducing the paper's example
+
+The worked examples in the paper are `examples/section5_example.py` (a two-forecast backtest),
+`examples/closed_form_vs_mc.py` (closed-form scores against the Monte Carlo fallback), and
+`examples/near_tie_example.py` (a six-model near-tie). With [uv](https://docs.astral.sh/uv/)
+installed, one command builds a pinned Python 3.12 environment (`requirements-paper.txt`) and runs all three:
+
+```bash
+make paper-example
+```
+
+The example simulates its data with `numpy`'s `Generator.multivariate_normal`, whose output differs
+between numpy 1.x and 2.x, so the printed numbers only reproduce under the pinned versions
+(numpy 1.26.4, scipy 1.13.1, arch 7.0.0). `make paper-tests` runs the test suite in the same environment.
+
 ## Validation
 
 Every scoring rule and test in this package is checked against an independent source of truth, not
 just its own self-consistency: `diebold_mariano` and `model_confidence_set` are cross-checked
-against live-generated R oracles (`forecast::dm.test` byte-exact, `MCS::MCSprocedure`
-verdict-matched), and every closed-form scoring formula is checked against brute-force Monte Carlo
-simulation of the object it claims to score. Fully type-hinted and `mypy`-clean. See `tests/` for
+against R oracles (`forecast::dm.test` to 1e-6, `MCS::MCSprocedure` verdict-matched). The R inputs and
+outputs are stored as fixtures in `tests/_reference/`, so `pytest` needs no R installation; with R,
+`make check-oracles` regenerates them and confirms they are unchanged. Every closed-form scoring
+formula is checked against brute-force Monte Carlo simulation of the object it claims to score. Fully type-hinted and `mypy`-clean. See `tests/` for
 the full suite.
 
 ## Related work
